@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: webhook
+      POSTGRES_PASSWORD: webhook
+      POSTGRES_DB: webhooknotifier
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./internal/storage/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webhook -d webhooknotifier"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: webhook
+      RABBITMQ_DEFAULT_PASS: webhook
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  receiver:
+    build: .
+    command: ["/app/receiver"]
+    environment: &app-env
+      DATABASE_URL: postgres://webhook:webhook@postgres:5432/webhooknotifier?sslmode=disable
+      RABBITMQ_URL: amqp://webhook:webhook@rabbitmq:5672/
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+  dispatcher:
+    build: .
+    command: ["/app/dispatcher"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+  worker:
+    build: .
+    command: ["/app/worker"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+  simulator:
+    build: .
+    command: ["/app/simulator", "-web"]
+    environment:
+      SIMULATOR_PORT: 8084
+    ports:
+      - "8084:8084"
+volumes:
+  postgres-data:
