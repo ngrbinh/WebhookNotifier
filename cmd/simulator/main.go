@@ -1,3 +1,5 @@
+// Command simulator generates configurable webhook traffic against the
+// receiver, either as a CLI benchmark run or an embedded web dashboard.
 package main
 
 import (
@@ -42,6 +44,8 @@ func main() {
 		panic(err)
 	}
 }
+
+// startDashboard serves simulator controls and runs simulations requested by the dashboard.
 func startDashboard(configuration runConfig) {
 	port := config.Load().SimulatorPort
 	handler := web.Handler(func(profile string, events, rate int) (string, error) {
@@ -57,6 +61,8 @@ func startDashboard(configuration runConfig) {
 		panic(err)
 	}
 }
+
+// run sends the configured number of webhook requests at the requested rate.
 func run(ctx context.Context, configuration runConfig) error {
 	client := &http.Client{Timeout: 5 * time.Second}
 	var accepted atomic.Int64
@@ -92,6 +98,8 @@ func run(ctx context.Context, configuration runConfig) error {
 	fmt.Printf("profile=%s accepted=%d rejected=%d\n", configuration.profile, accepted.Load(), rejected.Load())
 	return nil
 }
+
+// eventName returns the payload event name for a simulator request index.
 func eventName(index int) string {
 	switch index % 3 {
 	case 1:
@@ -102,6 +110,8 @@ func eventName(index int) string {
 		return "created"
 	}
 }
+
+// max returns the greater of two integers.
 func max(left, right int) int {
 	if left > right {
 		return left

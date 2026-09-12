@@ -1,3 +1,5 @@
+// Command receiver runs the HTTP event ingestion API that durably persists
+// events, idempotently, before returning a response to the caller.
 package main
 
 import (
@@ -11,10 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"webhooknotifier/internal/config"
 	"webhooknotifier/internal/model"
 	"webhooknotifier/internal/storage"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type receiver struct {
@@ -22,6 +25,7 @@ type receiver struct {
 	maxAttempts int
 }
 
+// handleEvent validates and persists one webhook event before returning its status.
 func (service *receiver) handleEvent(response http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
@@ -53,6 +57,7 @@ func (service *receiver) handleEvent(response http.ResponseWriter, request *http
 	}
 	json.NewEncoder(response).Encode(map[string]any{"event_id": event.ID, "accepted": inserted, "status": event.Status})
 }
+
 func main() {
 	configuration := config.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

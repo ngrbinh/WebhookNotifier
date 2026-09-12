@@ -1,3 +1,5 @@
+// Command dispatcher rotates accounts in round-robin order and publishes
+// pending and due-retry events to RabbitMQ within queue watermark limits.
 package main
 
 import (
@@ -45,6 +47,8 @@ func main() {
 		}
 	}
 }
+
+// dispatch claims pending events fairly and publishes them until the queue reaches its high watermark.
 func dispatch(ctx context.Context, repository *storage.EventRepository, broker *queue.Client, accountOrder *fairness.AccountRoundRobin, watermarkGate *fairness.WatermarkGate, owner string, configuration config.Config) {
 	ready, _, err := broker.Depth()
 	if err != nil {

@@ -39,6 +39,7 @@ type Event struct {
 	CreatedAt         time.Time       `json:"created_at"`
 }
 
+// Validate checks required fields, destination URL syntax, and supported payload fields.
 func (request IngestionRequest) Validate() error {
 	if request.AccountID == "" || request.DestinationURL == "" || request.IdempotencyKey == "" || len(request.Payload) == 0 {
 		return fmt.Errorf("account_id, destination_url, idempotency_key, and payload are required")

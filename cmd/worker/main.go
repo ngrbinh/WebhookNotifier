@@ -1,3 +1,5 @@
+// Command worker consumes RabbitMQ deliveries, calls partner webhooks, and
+// records success, retry, or dead-letter outcomes before acknowledging.
 package main
 
 import (
@@ -12,12 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"webhooknotifier/internal/config"
 	"webhooknotifier/internal/delivery"
 	"webhooknotifier/internal/model"
 	"webhooknotifier/internal/queue"
 	"webhooknotifier/internal/storage"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type worker struct {
@@ -27,6 +30,7 @@ type worker struct {
 	configuration config.Config
 }
 
+// process delivers one queued event and records its success, retry, or dead-letter outcome.
 func (service *worker) process(ctx context.Context, messageBody []byte) error {
 	var event model.Event
 	if err := json.Unmarshal(messageBody, &event); err != nil {
@@ -59,15 +63,20 @@ func (service *worker) process(ctx context.Context, messageBody []byte) error {
 		return service.finishDeadLetter(ctx, event, attempt, delivery.ErrorText(requestError, statusCode), statusCode)
 	}
 }
+
+// finishPermanent records a non-retryable failure using the event's next attempt number.
 func (service *worker) finishPermanent(ctx context.Context, event model.Event, reason string, statusCode int) error {
 	return service.finishDeadLetter(ctx, event, event.AttemptCount+1, reason, statusCode)
 }
+
+// finishDeadLetter records a terminal delivery failure and publishes the event to the dead-letter queue.
 func (service *worker) finishDeadLetter(ctx context.Context, event model.Event, attempt int, reason string, statusCode int) error {
 	if err := service.repository.RecordDeadLetter(ctx, event.ID, attempt, reason, statusCode); err != nil {
 		return err
 	}
 	return service.broker.PublishDeadLetter(ctx, event, reason)
 }
+
 func main() {
 	configuration := config.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

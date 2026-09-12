@@ -24,6 +24,7 @@ type Config struct {
 	WorkerConcurrency int
 }
 
+// Load returns service configuration populated from environment variables and defaults.
 func Load() Config {
 	return Config{
 		DatabaseURL:       env("DATABASE_URL", "postgres://webhook:webhook@localhost:5432/webhooknotifier?sslmode=disable"),
@@ -43,12 +44,15 @@ func Load() Config {
 	}
 }
 
+// env returns an environment variable value or fallback when the variable is empty.
 func env(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return fallback
 }
+
+// envInt parses an integer environment variable or returns fallback on invalid input.
 func envInt(key string, fallback int) int {
 	value, err := strconv.Atoi(env(key, ""))
 	if err != nil {
@@ -56,6 +60,8 @@ func envInt(key string, fallback int) int {
 	}
 	return value
 }
+
+// envDuration parses a duration environment variable or returns fallback on invalid input.
 func envDuration(key string, fallback time.Duration) time.Duration {
 	value, err := time.ParseDuration(env(key, ""))
 	if err != nil {

@@ -16,8 +16,10 @@ import (
 
 type EventRepository struct{ Pool *pgxpool.Pool }
 
+// NewEventRepository creates a repository backed by the supplied PostgreSQL pool.
 func NewEventRepository(pool *pgxpool.Pool) *EventRepository { return &EventRepository{Pool: pool} }
 
+// InsertEvent stores an event idempotently and returns the existing event when duplicated.
 func (repository *EventRepository) InsertEvent(ctx context.Context, request model.IngestionRequest, maxAttempts int) (model.Event, bool, error) {
 	id := uuid.New()
 	var event model.Event
@@ -29,6 +31,7 @@ func (repository *EventRepository) InsertEvent(ctx context.Context, request mode
 	return event, err == nil, err
 }
 
+// GetDistinctAccountsWithPendingWork lists accounts with pending or due retryable events.
 func (repository *EventRepository) GetDistinctAccountsWithPendingWork(ctx context.Context) ([]string, error) {
 	rows, err := repository.Pool.Query(ctx, `SELECT DISTINCT account_id FROM events WHERE status='pending' OR (status='retriable' AND next_retry_at <= NOW()) ORDER BY account_id`)
 	if err != nil {
@@ -46,6 +49,7 @@ func (repository *EventRepository) GetDistinctAccountsWithPendingWork(ctx contex
 	return accounts, rows.Err()
 }
 
+// ClaimBatchForAccount leases the oldest available events for one account.
 func (repository *EventRepository) ClaimBatchForAccount(ctx context.Context, accountID, owner string, quantum int, lease time.Duration) ([]model.Event, error) {
 	tx, err := repository.Pool.Begin(ctx)
 	if err != nil {
@@ -79,10 +83,13 @@ func (repository *EventRepository) ClaimBatchForAccount(ctx context.Context, acc
 	return events, nil
 }
 
+// MarkPublished marks successfully published events and clears their leases.
 func (repository *EventRepository) MarkPublished(ctx context.Context, ids []string) error {
 	_, err := repository.Pool.Exec(ctx, `UPDATE events SET status='published', lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE id = ANY($1::uuid[])`, ids)
 	return err
 }
+
+// RecordDeliverySuccess records a delivered event and its successful attempt.
 func (repository *EventRepository) RecordDeliverySuccess(ctx context.Context, id string, attempt int, statusCode int) error {
 	tx, err := repository.Pool.Begin(ctx)
 	if err != nil {
@@ -98,6 +105,8 @@ func (repository *EventRepository) RecordDeliverySuccess(ctx context.Context, id
 	}
 	return tx.Commit(ctx)
 }
+
+// RecordDeliveryRetry records a failed attempt and schedules the next delivery.
 func (repository *EventRepository) RecordDeliveryRetry(ctx context.Context, id string, attempt int, next time.Time, reason string, statusCode int) error {
 	tx, err := repository.Pool.Begin(ctx)
 	if err != nil {
@@ -113,6 +122,8 @@ func (repository *EventRepository) RecordDeliveryRetry(ctx context.Context, id s
 	}
 	return tx.Commit(ctx)
 }
+
+// RecordDeadLetter records a terminal failure and clears the event lease.
 func (repository *EventRepository) RecordDeadLetter(ctx context.Context, id string, attempt int, reason string, statusCode int) error {
 	tx, err := repository.Pool.Begin(ctx)
 	if err != nil {
@@ -128,4 +139,6 @@ func (repository *EventRepository) RecordDeadLetter(ctx context.Context, id stri
 	}
 	return tx.Commit(ctx)
 }
+
+// EncodeEvent serializes an event as JSON.
 func EncodeEvent(event model.Event) ([]byte, error) { return json.Marshal(event) }

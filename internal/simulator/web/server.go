@@ -12,6 +12,7 @@ var assets embed.FS
 
 type SimulationStarter func(profile string, events, rate int) (string, error)
 
+// Handler returns an HTTP handler for the simulator dashboard and API.
 func Handler(start SimulationStarter) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(assets)))

@@ -16,6 +16,7 @@ const (
 	Permanent
 )
 
+// Classify maps an HTTP result or request error to a delivery outcome.
 func Classify(statusCode int, requestError error) Outcome {
 	if requestError != nil || statusCode == http.StatusTooManyRequests || statusCode >= 500 {
 		return Retryable
@@ -25,6 +26,8 @@ func Classify(statusCode int, requestError error) Outcome {
 	}
 	return Permanent
 }
+
+// Backoff calculates an exponentially increasing delay with jitter for an attempt.
 func Backoff(base time.Duration, attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1
@@ -36,6 +39,8 @@ func Backoff(base time.Duration, attempt int) time.Duration {
 	jitter := time.Duration(rand.Int63n(int64(maximum/2 + 1)))
 	return maximum/2 + jitter
 }
+
+// ErrorText returns the request error text or the HTTP status text when no error exists.
 func ErrorText(requestError error, statusCode int) string {
 	if requestError != nil {
 		return requestError.Error()
