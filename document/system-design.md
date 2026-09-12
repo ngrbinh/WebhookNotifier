@@ -12,7 +12,7 @@ The system must provide:
 - Independent horizontal scaling of the receiver, dispatcher, and workers.
 - Durable event handling with bounded retries and dead-letter processing.
 
-Security hardening is outside the scope of this proof of concept.
+Security hardening is not implemented in this proof of concept. The target security architecture is documented in [Security Architecture](#8-security-architecture).
 
 ## 2. Current Flow
 
@@ -145,4 +145,28 @@ The benchmark measures system capacity, fairness, and reliability:
 - Resource usage (CPU, memory) across services.
 
 The primary validation benchmark subjects the system to a dominant account with millions of events alongside active smaller accounts. The test succeeds when small accounts maintain bounded dispatch latency, queue watermarks throttle the dominant account, and all transient failures follow exponential retry backoff without idling workers.
+
+## 8. Security Architecture
+
+This section outlines the target production design. The local proof of concept runs in a trusted local environment and does not implement security standards.
+
+### 8.1 Internal Service Authorization
+
+Internal service-to-service communication adheres to the standard **OAuth 2.0 Client Credentials** grant flow:
+
+- **Authentication & Authorization**: Workloads authenticate as distinct OAuth 2.0 clients to obtain short-lived, audience-restricted access tokens with minimal required scopes.
+- **Token Validation**: Receiving services validate token authenticity, expiration, target audience, and scope permissions at the application layer before handling requests.
+- **Secret Management**: Workload credentials and signing keys are managed securely through external secret storage rather than in source code or configuration files.
+
+### 8.2 Partner Authentication of Outbound Webhooks
+
+When workers deliver webhooks to external partner endpoints, partners must verify that incoming HTTP requests originate from our system and have not been altered:
+
+- **Shared Secret Model**: A signing secret is provisioned per partner account during upstream registration (e.g., via authenticated OAuth 2.0 onboarding) and shared once with the partner.
+- **Account-Level Key Resolution**: Because an account can manage multiple distinct webhooks, workers resolve the active signing secret by `account_id` at delivery time rather than per webhook endpoint.
+- **Delivery Signature**: Workers calculate a cryptographic signature over the payload and timestamp using the account's secret, passing them in HTTP headers for partner verification and replay protection.
+
+## 9. Transaction Consistency
+
+The exact guarantees and intentional at-least-once recovery windows for every cross-component handoff are described in [transaction-consistency.md](transaction-consistency.md).
 
