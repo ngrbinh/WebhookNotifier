@@ -8,4 +8,4 @@ FROM alpine:3.20
 RUN adduser -D -H app
 USER app
 COPY --from=build /out/ /app/
-ENTRYPOINT ["/app/receiver"]
+CMD ["/app/receiver"]
