@@ -19,7 +19,6 @@ import (
 	"webhooknotifier/internal/model"
 	registryservice "webhooknotifier/internal/simulator"
 	"webhooknotifier/internal/simulator/web"
-	"webhooknotifier/internal/storage"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -52,9 +51,6 @@ func main() {
 		panic(err)
 	}
 	defer pool.Close()
-	if err := storage.ApplyMigrations(ctx, pool); err != nil {
-		panic(err)
-	}
 	if _, err := run(ctx, configuration, registryservice.NewRegistry(pool), config.Load().SimulatorInternalURL); err != nil {
 		panic(err)
 	}
@@ -68,9 +64,6 @@ func startDashboard(configuration runConfig) {
 		log.Fatal(err)
 	}
 	defer pool.Close()
-	if err := storage.ApplyMigrations(context.Background(), pool); err != nil {
-		log.Fatal(err)
-	}
 	registry := registryservice.NewRegistry(pool)
 	handler := web.Handler(registry, func(ctx context.Context, profile string, events, rate int) (web.SimulationResult, error) {
 		configuration.profile, configuration.events, configuration.rate = profile, events, rate

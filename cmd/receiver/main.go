@@ -67,9 +67,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer pool.Close()
-	if err := storage.ApplyMigrations(ctx, pool); err != nil {
-		log.Fatal(err)
-	}
 	service := &receiver{repository: storage.NewEventRepository(pool), maxAttempts: configuration.MaxAttempts}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/events", service.handleEvent)
