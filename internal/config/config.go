@@ -12,6 +12,7 @@ type Config struct {
 	RabbitURL         string
 	ReceiverPort      string
 	SimulatorPort     string
+	SimulatorInternalURL string
 	QueueName         string
 	DLQName           string
 	Quantum           int
@@ -31,6 +32,7 @@ func Load() Config {
 		RabbitURL:         env("RABBITMQ_URL", "amqp://webhook:webhook@localhost:5672/"),
 		ReceiverPort:      env("RECEIVER_PORT", "8080"),
 		SimulatorPort:     env("SIMULATOR_PORT", "8084"),
+		SimulatorInternalURL: env("SIMULATOR_INTERNAL_URL", "http://simulator:8084"),
 		QueueName:         env("QUEUE_NAME", "webhook.events"),
 		DLQName:           env("DLQ_NAME", "webhook.dead_letters"),
 		Quantum:           envInt("DISPATCH_QUANTUM", 5),

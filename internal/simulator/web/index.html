@@ -5,6 +5,76 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Webhook Notifier Simulator</title>
 	<style>
+		:root { --ink:#13211d; --muted:#64736b; --paper:#f5f2ea; --panel:#fffdf8; --line:#d7d2c6; --accent:#b5482e; --accent-dark:#87311e; --ok:#237a57; --warn:#a36310; }
+		* { box-sizing:border-box; }
+		body { margin:0; background:linear-gradient(135deg,#eef2e7 0%,var(--paper) 48%,#f5e8dc 100%); color:var(--ink); font:16px Georgia, "Times New Roman", serif; min-height:100vh; }
+		main { width:min(1080px,calc(100% - 2rem)); margin:0 auto; padding:3rem 0 4rem; }
+		header { border-bottom:2px solid var(--ink); padding-bottom:1rem; display:flex; justify-content:space-between; align-items:end; gap:1rem; }
+		h1 { font-size:clamp(2rem,5vw,3.5rem); margin:0; letter-spacing:0; font-weight:normal; }
+		header p { margin:0; color:var(--muted); max-width:28rem; }
+		nav { display:flex; gap:1px; margin:2rem 0; border-bottom:1px solid var(--line); }
+		nav button { background:none; color:var(--muted); border:0; padding:.8rem 1rem; font:inherit; cursor:pointer; }
+		nav button[aria-selected="true"] { color:var(--ink); border-bottom:3px solid var(--accent); }
+		.view { display:none; } .view.active { display:block; }
+		.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2rem; }
+		section { padding:1.25rem 0; border-top:1px solid var(--line); }
+		section:first-child { border-top:0; padding-top:0; }
+		h2 { font-size:1.4rem; font-weight:normal; margin:0 0 .35rem; }
+		.intro { color:var(--muted); margin:.35rem 0 1.25rem; }
+		form { display:grid; gap:.8rem; }
+		label, legend { font-weight:bold; } input, select { width:100%; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:.65rem; font:inherit; border-radius:0; }
+		fieldset { margin:0; border:1px solid var(--line); padding:.8rem; display:grid; gap:.5rem; }
+		.check { display:flex; align-items:center; gap:.5rem; font-weight:normal; } .check input { width:auto; }
+		button { font:inherit; cursor:pointer; border:1px solid var(--accent-dark); background:var(--accent); color:white; padding:.65rem 1rem; border-radius:0; } button:hover { background:var(--accent-dark); } button:disabled { opacity:.55; cursor:wait; }
+		.status { min-height:1.3rem; margin:.8rem 0 0; color:var(--muted); } .status.error { color:#9d251c; }
+		.list { margin:0; padding:0; list-style:none; display:grid; gap:.7rem; }
+		.list li { background:rgba(255,253,248,.75); border-left:3px solid var(--accent); padding:.75rem; }
+		code { font-family:"Courier New",monospace; font-size:.85em; overflow-wrap:anywhere; }
+		.metrics { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); margin:1.2rem 0; } .metric { padding:.7rem; border-right:1px solid var(--line); } .metric:last-child { border-right:0; } .metric strong { display:block; font-size:1.5rem; font-weight:normal; }
+		.delivery { display:grid; grid-template-columns:1fr auto; gap:.3rem 1rem; } .delivery small { color:var(--muted); } .delivery .code { color:var(--ok); } .delivery .failure { color:var(--warn); }
+		.empty { color:var(--muted); font-style:italic; } [hidden] { display:none!important; }
+		@media (max-width:700px) { main { padding-top:1.5rem; } header,.grid { display:block; } header p { margin-top:.8rem; } .grid > * + * { margin-top:2rem; } .metrics { grid-template-columns:repeat(2,1fr); } .metric { border-bottom:1px solid var(--line); } }
+	</style>
+</head>
+<body>
+	<main>
+		<header><div><h1>Webhook Notifier</h1></div><p>Register local destinations, generate account traffic, and inspect every delivery.</p></header>
+		<nav aria-label="Simulator views"><button type="button" data-view="registration" aria-selected="true">Registration</button><button type="button" data-view="simulation" aria-selected="false">Simulation and deliveries</button></nav>
+
+		<div id="registration" class="view active">
+			<div class="grid"><section><h2>Create account</h2><p class="intro">Events belong to an account. Add webhooks after the account exists.</p><form id="account-form"><label for="account-id">Account ID</label><input id="account-id" required maxlength="100" placeholder="acme"><button type="submit">Create account</button></form><p id="account-status" class="status" aria-live="polite"></p></section>
+			<section><h2>Register webhook</h2><p class="intro">The simulator creates the listener URL and records deliveries.</p><form id="webhook-form"><label for="webhook-account">Account</label><select id="webhook-account" required></select><fieldset><legend>Event types</legend><label class="check"><input type="checkbox" name="event-type" value="subscriber.created"> Subscriber created</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.added_to_segment"> Added to segment</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.unsubscribed"> Unsubscribed</label></fieldset><label for="response-status">Response status</label><select id="response-status"><option value="200">200 success</option><option value="429">429 retry later</option><option value="500">500 server error</option><option value="404">404 permanent failure</option></select><label for="response-delay">Response delay (milliseconds)</label><input id="response-delay" type="number" min="0" max="30000" value="0"><button type="submit">Register webhook</button></form><p id="webhook-status" class="status" aria-live="polite"></p></section></div>
+			<section><h2>Registered destinations</h2><ul id="webhook-list" class="list"></ul></section>
+		</div>
+
+		<div id="simulation" class="view"><section><h2>Start simulation</h2><p class="intro">Each generated account event enters every registered webhook with its matching event type.</p><form id="simulation-form"><div class="grid"><div><label for="profile">Traffic profile</label><select id="profile"><option value="balanced">Balanced</option><option value="noisy_neighbor">Noisy neighbor</option></select></div><div><label for="events">Account events</label><input id="events" type="number" min="1" max="10000" value="30"></div></div><label for="rate">Account events per second</label><input id="rate" type="number" min="1" max="1000" value="20"><button id="start" type="submit">Start simulation</button></form><p id="simulation-status" class="status" aria-live="polite"></p><div id="metrics" class="metrics" hidden></div></section><section><h2>Captured deliveries</h2><p class="intro">Refreshes while this view is open. A retryable endpoint appears once for every worker attempt.</p><ul id="delivery-list" class="list"></ul></section></div>
+	</main>
+	<script>
+		const state = { accounts: [], webhooks: [], refreshTimer: null };
+		const eventLabel = value => ({"subscriber.created":"subscriber.created","subscriber.added_to_segment":"subscriber.added_to_segment","subscriber.unsubscribed":"subscriber.unsubscribed"})[value] || value;
+		async function request(url, options = {}) { const response = await fetch(url, options); const body = await response.text(); if (!response.ok) throw new Error(body || response.statusText); return body ? JSON.parse(body) : null; }
+		function status(id, text, error = false) { const element = document.querySelector(id); element.textContent = text; element.classList.toggle("error", error); }
+		function renderAccounts() { const select = document.querySelector("#webhook-account"); select.replaceChildren(); if (!state.accounts.length) { select.add(new Option("Create an account first", "")); select.disabled = true; return; } select.disabled = false; state.accounts.forEach(account => select.add(new Option(account.id, account.id))); }
+		function renderWebhooks() { const list = document.querySelector("#webhook-list"); list.replaceChildren(); if (!state.webhooks.length) { list.innerHTML = '<li class="empty">No webhook destinations are registered.</li>'; return; } state.webhooks.forEach(webhook => { const item = document.createElement("li"); item.innerHTML = `<strong>${webhook.account_id}</strong><br><code>${location.origin}/internal/webhooks/${webhook.id}</code><br><small>${webhook.event_types.map(eventLabel).join(", ")} | ${webhook.response_status} after ${webhook.response_delay_ms}ms</small>`; list.append(item); }); }
+		async function loadRegistrations() { [state.accounts, state.webhooks] = await Promise.all([request("/api/accounts"), request("/api/webhooks")]); renderAccounts(); renderWebhooks(); }
+		function selectedEventTypes() { return [...document.querySelectorAll('input[name="event-type"]:checked')].map(input => input.value); }
+		document.querySelector("#account-form").addEventListener("submit", async event => { event.preventDefault(); try { const account = await request("/api/accounts", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:document.querySelector("#account-id").value})}); status("#account-status", `Created ${account.id}.`); event.target.reset(); await loadRegistrations(); } catch (error) { status("#account-status", error.message, true); } });
+		document.querySelector("#webhook-form").addEventListener("submit", async event => { event.preventDefault(); const eventTypes = selectedEventTypes(); if (eventTypes.length < 1 || eventTypes.length > 3) { status("#webhook-status", "Select between one and three event types.", true); return; } try { const webhook = await request("/api/webhooks", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account_id:document.querySelector("#webhook-account").value,event_types:eventTypes,response_status:Number(document.querySelector("#response-status").value),response_delay_ms:Number(document.querySelector("#response-delay").value)})}); status("#webhook-status", `Registered ${webhook.id}.`); event.target.reset(); await loadRegistrations(); } catch (error) { status("#webhook-status", error.message, true); } });
+		function renderMetrics(result) { const labels = [["Generated",result.generated],["Matched",result.matched],["Accepted",result.accepted],["Rejected",result.rejected],["Unmatched",result.unmatched]]; const metrics = document.querySelector("#metrics"); metrics.innerHTML = labels.map(([label,value]) => `<div class="metric"><small>${label}</small><strong>${value}</strong></div>`).join(""); metrics.hidden = false; }
+		async function loadDeliveries() { try { const deliveries = await request("/api/deliveries"); const list = document.querySelector("#delivery-list"); list.replaceChildren(); if (!deliveries.length) { list.innerHTML = '<li class="empty">No deliveries captured yet.</li>'; return; } deliveries.forEach(delivery => { const payload = JSON.parse(delivery.payload); const item = document.createElement("li"); item.className = "delivery"; item.innerHTML = `<div><strong>${delivery.webhook_id}</strong><br><small>${eventLabel(payload.event_name || "unknown event")} | ${new Date(delivery.received_at).toLocaleString()}</small></div><div class="code ${delivery.response_status >= 400 ? "failure" : ""}">${delivery.response_status}</div>`; list.append(item); }); } catch (error) { status("#simulation-status", error.message, true); } }
+		document.querySelector("#simulation-form").addEventListener("submit", async event => { event.preventDefault(); const button = document.querySelector("#start"); button.disabled = true; status("#simulation-status", "Simulation running..."); try { const result = await request("/api/simulate", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({profile:document.querySelector("#profile").value,events:Number(document.querySelector("#events").value),rate:Number(document.querySelector("#rate").value)})}); renderMetrics(result); status("#simulation-status", "Simulation complete."); await loadDeliveries(); } catch (error) { status("#simulation-status", error.message, true); } finally { button.disabled = false; } });
+		document.querySelectorAll("nav button").forEach(button => button.addEventListener("click", async () => { const view = button.dataset.view; document.querySelectorAll("nav button").forEach(item => item.setAttribute("aria-selected", item === button)); document.querySelectorAll(".view").forEach(item => item.classList.toggle("active", item.id === view)); if (state.refreshTimer) clearInterval(state.refreshTimer); if (view === "simulation") { await loadDeliveries(); state.refreshTimer = setInterval(loadDeliveries, 2000); } }));
+		loadRegistrations().catch(error => status("#account-status", error.message, true));
+	</script>
+</body>
+</html>
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Webhook Notifier Simulator</title>
+	<style>
 		body {
 			max-width: 720px;
 			margin: 4rem auto;

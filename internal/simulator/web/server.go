@@ -2,36 +2,170 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
+
+	"webhooknotifier/internal/simulator"
 )
 
 //go:embed index.html
 var assets embed.FS
 
-type SimulationStarter func(profile string, events, rate int) (string, error)
+type Registry interface {
+	CreateAccount(context.Context, string) (simulator.Account, error)
+	ListAccounts(context.Context) ([]simulator.Account, error)
+	CreateWebhook(context.Context, string, []string, int, int) (simulator.Webhook, error)
+	ListWebhooks(context.Context) ([]simulator.Webhook, error)
+	GetWebhook(context.Context, string) (simulator.Webhook, error)
+	RecordDelivery(context.Context, string, json.RawMessage, json.RawMessage, int) (simulator.Delivery, error)
+	ListDeliveries(context.Context, int) ([]simulator.Delivery, error)
+}
+
+type SimulationResult struct {
+	Generated int `json:"generated"`
+	Matched   int `json:"matched"`
+	Accepted  int `json:"accepted"`
+	Rejected  int `json:"rejected"`
+	Unmatched int `json:"unmatched"`
+}
+
+type SimulationStarter func(context.Context, string, int, int) (SimulationResult, error)
 
 // Handler returns an HTTP handler for the simulator dashboard and API.
-func Handler(start SimulationStarter) http.Handler {
+func Handler(registry Registry, start SimulationStarter) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(assets)))
+	mux.HandleFunc("/api/accounts", func(response http.ResponseWriter, request *http.Request) {
+		switch request.Method {
+		case http.MethodGet:
+			accounts, err := registry.ListAccounts(request.Context())
+			writeJSON(response, accounts, err)
+		case http.MethodPost:
+			var input struct {
+				ID string `json:"id"`
+			}
+			if !decodeJSON(response, request, &input) {
+				return
+			}
+			account, err := registry.CreateAccount(request.Context(), input.ID)
+			writeJSON(response, account, err)
+		default:
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/webhooks", func(response http.ResponseWriter, request *http.Request) {
+		switch request.Method {
+		case http.MethodGet:
+			webhooks, err := registry.ListWebhooks(request.Context())
+			writeJSON(response, webhooks, err)
+		case http.MethodPost:
+			var input struct {
+				AccountID       string   `json:"account_id"`
+				EventTypes      []string `json:"event_types"`
+				ResponseStatus  int      `json:"response_status"`
+				ResponseDelayMS int      `json:"response_delay_ms"`
+			}
+			if !decodeJSON(response, request, &input) {
+				return
+			}
+			webhook, err := registry.CreateWebhook(request.Context(), input.AccountID, input.EventTypes, input.ResponseStatus, input.ResponseDelayMS)
+			writeJSON(response, webhook, err)
+		default:
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/deliveries", func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		deliveries, err := registry.ListDeliveries(request.Context(), 100)
+		writeJSON(response, deliveries, err)
+	})
 	mux.HandleFunc("/api/simulate", func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		var input struct {
 			Profile string `json:"profile"`
 			Events  int    `json:"events"`
 			Rate    int    `json:"rate"`
 		}
-		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
-			http.Error(response, err.Error(), 400)
+		if !decodeJSON(response, request, &input) {
 			return
 		}
-		output, err := start(input.Profile, input.Events, input.Rate)
+		output, err := start(request.Context(), input.Profile, input.Events, input.Rate)
+		writeJSON(response, output, err)
+	})
+	mux.HandleFunc("/internal/webhooks/", func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		webhookID := strings.TrimPrefix(request.URL.Path, "/internal/webhooks/")
+		if webhookID == "" || strings.Contains(webhookID, "/") {
+			http.NotFound(response, request)
+			return
+		}
+		webhook, err := registry.GetWebhook(request.Context(), webhookID)
 		if err != nil {
-			http.Error(response, err.Error(), 500)
+			http.NotFound(response, request)
 			return
 		}
-		response.Write([]byte(output))
+		payload, err := readPayload(response, request)
+		if err != nil {
+			return
+		}
+		headers, err := json.Marshal(request.Header)
+		if err != nil {
+			http.Error(response, "encode headers: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if _, err = registry.RecordDelivery(request.Context(), webhook.ID, payload, headers, webhook.ResponseStatus); err != nil {
+			http.Error(response, "record delivery: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if webhook.ResponseDelayMS > 0 {
+			time.Sleep(time.Duration(webhook.ResponseDelayMS) * time.Millisecond)
+		}
+		response.WriteHeader(webhook.ResponseStatus)
 	})
 	return mux
+}
+
+func decodeJSON(response http.ResponseWriter, request *http.Request, target any) bool {
+	if err := json.NewDecoder(http.MaxBytesReader(response, request.Body, 2<<20)).Decode(target); err != nil {
+		http.Error(response, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func readPayload(response http.ResponseWriter, request *http.Request) (json.RawMessage, error) {
+	var payload json.RawMessage
+	if err := json.NewDecoder(http.MaxBytesReader(response, request.Body, 2<<20)).Decode(&payload); err != nil {
+		http.Error(response, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return nil, err
+	}
+	if !json.Valid(payload) {
+		err := fmt.Errorf("payload must be valid JSON")
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return nil, err
+	}
+	return payload, nil
+}
+
+func writeJSON(response http.ResponseWriter, value any, err error) {
+	if err != nil {
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return
+	}
+	response.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(response).Encode(value)
 }

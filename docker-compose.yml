@@ -55,10 +55,15 @@ services:
       rabbitmq: { condition: service_healthy }
   simulator:
     build: .
-    command: ["/app/simulator", "-web"]
+    command: ["/app/simulator", "-web", "-receiver", "http://receiver:8080/api/v1/events"]
     environment:
       SIMULATOR_PORT: 8084
+      SIMULATOR_INTERNAL_URL: http://simulator:8084
+      DATABASE_URL: postgres://webhook:webhook@postgres:5432/webhooknotifier?sslmode=disable
     ports:
       - "8084:8084"
+    depends_on:
+      postgres: { condition: service_healthy }
+      receiver: { condition: service_started }
 volumes:
   postgres-data:
