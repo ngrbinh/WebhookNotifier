@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Webhook Notifier Simulator</title>
+	<style>
+		body {
+			max-width: 720px;
+			margin: 4rem auto;
+			padding: 0 1rem;
+			background: #f4f1ea;
+			color: #18211c;
+			font: 16px system-ui;
+		}
+
+		button,
+		input,
+		select {
+			box-sizing: border-box;
+			padding: 0.7rem;
+		}
+
+		button {
+			border: 0;
+			border-radius: 4px;
+			background: #c94f35;
+			color: white;
+		}
+
+		input,
+		select {
+			width: 100%;
+			margin: 0.3rem 0 1rem;
+		}
+
+		pre {
+			min-height: 8rem;
+			padding: 1rem;
+			background: #18211c;
+			color: #d9e7d3;
+		}
+	</style>
+</head>
+<body>
+	<h1>Webhook Notifier</h1>
+	<p>Run a local fairness benchmark against the durable receiver.</p>
+
+	<label for="profile">Profile</label>
+	<select id="profile">
+		<option value="balanced">Balanced</option>
+		<option value="noisy_neighbor">Noisy neighbor</option>
+	</select>
+
+	<label for="events">Events</label>
+	<input id="events" type="number" value="30">
+
+	<label for="rate">Rate / second</label>
+	<input id="rate" type="number" value="20">
+
+	<button id="start" type="button">Start simulation</button>
+	<pre id="output">Idle</pre>
+
+	<script>
+		const startButton = document.querySelector("#start");
+		const output = document.querySelector("#output");
+
+		startButton.addEventListener("click", async () => {
+			output.textContent = "Running...";
+			const response = await fetch("/api/simulate", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					profile: document.querySelector("#profile").value,
+					events: Number(document.querySelector("#events").value),
+					rate: Number(document.querySelector("#rate").value)
+				})
+			});
+			output.textContent = await response.text();
+		});
+	</script>
+</body>
+</html>
