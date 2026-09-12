@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rabbitmq/amqp091-go"
 	"webhooknotifier/internal/model"
+
+	"github.com/rabbitmq/amqp091-go"
 )
 
 type Client struct {

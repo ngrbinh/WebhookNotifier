@@ -7,10 +7,11 @@ import (
 	"errors"
 	"time"
 
+	"webhooknotifier/internal/model"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"webhooknotifier/internal/model"
 )
 
 type EventRepository struct{ Pool *pgxpool.Pool }

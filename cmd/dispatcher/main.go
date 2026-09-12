@@ -8,11 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"webhooknotifier/internal/config"
 	"webhooknotifier/internal/fairness"
 	"webhooknotifier/internal/queue"
 	"webhooknotifier/internal/storage"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
