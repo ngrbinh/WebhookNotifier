@@ -19,8 +19,6 @@ import (
 	"webhooknotifier/internal/model"
 	registryservice "webhooknotifier/internal/simulator"
 	"webhooknotifier/internal/simulator/web"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type runConfig struct {
@@ -46,13 +44,13 @@ func main() {
 		return
 	}
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, config.Load().DatabaseURL)
+	pool, err := app.OpenDatabase(ctx, config.Load().DatabaseURL)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer pool.Close()
-	if _, err := run(ctx, configuration, registryservice.NewRegistry(pool), config.Load().SimulatorInternalURL); err != nil {
-		panic(err)
+	if _, err := simulateSendingEvents(ctx, configuration, registryservice.NewRegistry(pool), config.Load().SimulatorInternalURL); err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -67,17 +65,17 @@ func startDashboard(configuration runConfig) {
 	registry := registryservice.NewRegistry(pool)
 	handler := web.Handler(registry, func(ctx context.Context, profile string, events, rate int) (web.SimulationResult, error) {
 		configuration.profile, configuration.events, configuration.rate = profile, events, rate
-		return run(ctx, configuration, registry, settings.SimulatorInternalURL)
+		return simulateSendingEvents(ctx, configuration, registry, settings.SimulatorInternalURL)
 	})
 	server := &http.Server{Addr: ":" + settings.SimulatorPort, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Printf("simulator dashboard listening on http://localhost:%s\n", settings.SimulatorPort)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
-// run sends account events to each matching simulator-managed webhook subscription.
-func run(ctx context.Context, configuration runConfig, registry *registryservice.Registry, simulatorURL string) (web.SimulationResult, error) {
+// simulateSendingEvents sends account events to each matching simulator-managed webhook subscription.
+func simulateSendingEvents(ctx context.Context, configuration runConfig, registry *registryservice.Registry, simulatorURL string) (web.SimulationResult, error) {
 	accounts, err := registry.ListAccounts(ctx)
 	if err != nil {
 		return web.SimulationResult{}, err
