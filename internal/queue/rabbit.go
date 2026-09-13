@@ -20,7 +20,25 @@ type Client struct {
 }
 
 // New connects to RabbitMQ, declares the event queues, and returns a client.
+// It retries transient startup failures until the context is canceled.
 func New(ctx context.Context, url, queueName, dlqName string) (*Client, error) {
+	const retryInterval = time.Second * 5
+	var lastError error
+	for {
+		client, err := connect(ctx, url, queueName, dlqName)
+		if err == nil {
+			return client, nil
+		}
+		lastError = err
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("connect to RabbitMQ: %w (last error: %v)", ctx.Err(), lastError)
+		case <-time.After(retryInterval):
+		}
+	}
+}
+
+func connect(ctx context.Context, url, queueName, dlqName string) (*Client, error) {
 	connection, err := amqp091.Dial(url)
 	if err != nil {
 		return nil, err

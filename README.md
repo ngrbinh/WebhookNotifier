@@ -42,18 +42,17 @@ When changing the pipeline, preserve these boundaries. In particular, retry sche
 
 ### Dashboard
 
-Open `http://localhost:8084` after starting Compose. Select a traffic profile, set the event count and publication rate, and choose **Start simulation**. The dashboard sends traffic to the receiver and displays the run result.
+Open `http://localhost:8084` after starting Compose. Create accounts and register matching webhooks first. Each webhook has a response distribution across `2xx`, `429`, permanent `404`, and `5xx` outcomes; the percentages must total 100.
 
-### CLI
+In **Simulation and deliveries**, add one or more account/event/count entries, set the shared publication rate, and choose **Start simulation**. Every submitted run is tracked independently in the browser, so additional runs can start while another is in progress. The run list is intentionally cleared on page reload. Set **Newest deliveries** to control how many recent captures are shown; each row displays the account, event type, receipt time, and returned status.
 
-Run the simulator directly against a receiver:
+Run the dashboard with:
 
 ```powershell
-go run ./cmd/simulator -profile balanced
-go run ./cmd/simulator -profile noisy_neighbor -accounts 5 -events 100 -rate 20
+go run ./cmd/simulator
 ```
 
-Useful flags are `-receiver`, `-accounts`, `-events`, `-rate`, and `-profile`. The current CLI profiles are `balanced` and `noisy_neighbor`; the generated payloads cover the three supported subscriber event names.
+The only simulator flag is `-receiver`, which overrides the receiver ingestion URL. Configure accounts, webhook outcomes, event entries, and publication rate in the dashboard.
 
 ## Receiver example
 

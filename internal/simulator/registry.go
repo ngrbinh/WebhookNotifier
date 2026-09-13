@@ -25,16 +25,20 @@ type Account struct {
 }
 
 type Webhook struct {
-	ID              string   `json:"id"`
-	AccountID       string   `json:"account_id"`
-	EventTypes      []string `json:"event_types"`
-	ResponseStatus  int      `json:"response_status"`
-	ResponseDelayMS int      `json:"response_delay_ms"`
+	ID                 string   `json:"id"`
+	AccountID          string   `json:"account_id"`
+	EventTypes         []string `json:"event_types"`
+	Response2xxPercent int      `json:"response_2xx_percent"`
+	Response429Percent int      `json:"response_429_percent"`
+	Response4xxPercent int      `json:"response_4xx_percent"`
+	Response5xxPercent int      `json:"response_5xx_percent"`
+	ResponseDelayMS    int      `json:"response_delay_ms"`
 }
 
 type Delivery struct {
 	ID             int64           `json:"id"`
 	WebhookID      string          `json:"webhook_id"`
+	AccountID      string          `json:"account_id"`
 	Payload        json.RawMessage `json:"payload"`
 	Headers        json.RawMessage `json:"headers"`
 	ResponseStatus int             `json:"response_status"`
@@ -76,17 +80,17 @@ func (registry *Registry) ListAccounts(ctx context.Context) ([]Account, error) {
 	return accounts, rows.Err()
 }
 
-func (registry *Registry) CreateWebhook(ctx context.Context, accountID string, eventTypes []string, responseStatus, responseDelayMS int) (Webhook, error) {
-	if err := validateWebhook(eventTypes, responseStatus, responseDelayMS); err != nil {
+func (registry *Registry) CreateWebhook(ctx context.Context, accountID string, eventTypes []string, response2xxPercent, response429Percent, response4xxPercent, response5xxPercent, responseDelayMS int) (Webhook, error) {
+	if err := validateWebhook(eventTypes, response2xxPercent, response429Percent, response4xxPercent, response5xxPercent, responseDelayMS); err != nil {
 		return Webhook{}, err
 	}
-	webhook := Webhook{ID: "wh_" + uuid.NewString(), AccountID: accountID, EventTypes: eventTypes, ResponseStatus: responseStatus, ResponseDelayMS: responseDelayMS}
-	err := registry.pool.QueryRow(ctx, `INSERT INTO simulator_webhooks (id, account_id, event_types, response_status, response_delay_ms) VALUES ($1,$2,$3,$4,$5) RETURNING id, account_id, event_types, response_status, response_delay_ms`, webhook.ID, webhook.AccountID, webhook.EventTypes, webhook.ResponseStatus, webhook.ResponseDelayMS).Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.ResponseStatus, &webhook.ResponseDelayMS)
+	webhook := Webhook{ID: "wh_" + uuid.NewString(), AccountID: accountID, EventTypes: eventTypes, Response2xxPercent: response2xxPercent, Response429Percent: response429Percent, Response4xxPercent: response4xxPercent, Response5xxPercent: response5xxPercent, ResponseDelayMS: responseDelayMS}
+	err := registry.pool.QueryRow(ctx, `INSERT INTO simulator_webhooks (id, account_id, event_types, response_2xx_percent, response_429_percent, response_4xx_percent, response_5xx_percent, response_delay_ms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, account_id, event_types, response_2xx_percent, response_429_percent, response_4xx_percent, response_5xx_percent, response_delay_ms`, webhook.ID, webhook.AccountID, webhook.EventTypes, webhook.Response2xxPercent, webhook.Response429Percent, webhook.Response4xxPercent, webhook.Response5xxPercent, webhook.ResponseDelayMS).Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.Response2xxPercent, &webhook.Response429Percent, &webhook.Response4xxPercent, &webhook.Response5xxPercent, &webhook.ResponseDelayMS)
 	return webhook, err
 }
 
 func (registry *Registry) ListWebhooks(ctx context.Context) ([]Webhook, error) {
-	rows, err := registry.pool.Query(ctx, `SELECT id, account_id, event_types, response_status, response_delay_ms FROM simulator_webhooks ORDER BY account_id, id`)
+	rows, err := registry.pool.Query(ctx, `SELECT id, account_id, event_types, response_2xx_percent, response_429_percent, response_4xx_percent, response_5xx_percent, response_delay_ms FROM simulator_webhooks ORDER BY account_id, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +99,7 @@ func (registry *Registry) ListWebhooks(ctx context.Context) ([]Webhook, error) {
 }
 
 func (registry *Registry) FindWebhooksForEvent(ctx context.Context, accountID, eventType string) ([]Webhook, error) {
-	rows, err := registry.pool.Query(ctx, `SELECT id, account_id, event_types, response_status, response_delay_ms FROM simulator_webhooks WHERE account_id = $1 AND $2 = ANY(event_types) ORDER BY id`, accountID, eventType)
+	rows, err := registry.pool.Query(ctx, `SELECT id, account_id, event_types, response_2xx_percent, response_429_percent, response_4xx_percent, response_5xx_percent, response_delay_ms FROM simulator_webhooks WHERE account_id = $1 AND $2 = ANY(event_types) ORDER BY id`, accountID, eventType)
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +109,20 @@ func (registry *Registry) FindWebhooksForEvent(ctx context.Context, accountID, e
 
 func (registry *Registry) GetWebhook(ctx context.Context, webhookID string) (Webhook, error) {
 	var webhook Webhook
-	err := registry.pool.QueryRow(ctx, `SELECT id, account_id, event_types, response_status, response_delay_ms FROM simulator_webhooks WHERE id = $1`, webhookID).Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.ResponseStatus, &webhook.ResponseDelayMS)
+	err := registry.pool.QueryRow(ctx, `SELECT id, account_id, event_types, response_2xx_percent, response_429_percent, response_4xx_percent, response_5xx_percent, response_delay_ms FROM simulator_webhooks WHERE id = $1`, webhookID).Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.Response2xxPercent, &webhook.Response429Percent, &webhook.Response4xxPercent, &webhook.Response5xxPercent, &webhook.ResponseDelayMS)
 	return webhook, err
+}
+
+// DeleteWebhook removes a webhook and all deliveries captured for it.
+func (registry *Registry) DeleteWebhook(ctx context.Context, webhookID string) error {
+	commandTag, err := registry.pool.Exec(ctx, `DELETE FROM simulator_webhooks WHERE id = $1`, webhookID)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("webhook %q does not exist", webhookID)
+	}
+	return nil
 }
 
 func (registry *Registry) RecordDelivery(ctx context.Context, webhookID string, payload json.RawMessage, headers json.RawMessage, responseStatus int) (Delivery, error) {
@@ -119,7 +135,7 @@ func (registry *Registry) ListDeliveries(ctx context.Context, limit int) ([]Deli
 	if limit < 1 || limit > 500 {
 		limit = 100
 	}
-	rows, err := registry.pool.Query(ctx, `SELECT id, webhook_id, payload, headers, response_status, received_at FROM simulator_deliveries ORDER BY received_at DESC LIMIT $1`, limit)
+	rows, err := registry.pool.Query(ctx, `SELECT deliveries.id, deliveries.webhook_id, webhooks.account_id, deliveries.payload, deliveries.headers, deliveries.response_status, deliveries.received_at FROM simulator_deliveries AS deliveries JOIN simulator_webhooks AS webhooks ON webhooks.id = deliveries.webhook_id ORDER BY deliveries.received_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +143,7 @@ func (registry *Registry) ListDeliveries(ctx context.Context, limit int) ([]Deli
 	deliveries := make([]Delivery, 0)
 	for rows.Next() {
 		var delivery Delivery
-		if err := rows.Scan(&delivery.ID, &delivery.WebhookID, &delivery.Payload, &delivery.Headers, &delivery.ResponseStatus, &delivery.ReceivedAt); err != nil {
+		if err := rows.Scan(&delivery.ID, &delivery.WebhookID, &delivery.AccountID, &delivery.Payload, &delivery.Headers, &delivery.ResponseStatus, &delivery.ReceivedAt); err != nil {
 			return nil, err
 		}
 		deliveries = append(deliveries, delivery)
@@ -135,11 +151,17 @@ func (registry *Registry) ListDeliveries(ctx context.Context, limit int) ([]Deli
 	return deliveries, rows.Err()
 }
 
+// ClearDeliveries removes all deliveries captured by the simulator.
+func (registry *Registry) ClearDeliveries(ctx context.Context) error {
+	_, err := registry.pool.Exec(ctx, `DELETE FROM simulator_deliveries`)
+	return err
+}
+
 func collectWebhooks(rows pgx.Rows) ([]Webhook, error) {
 	webhooks := make([]Webhook, 0)
 	for rows.Next() {
 		var webhook Webhook
-		if err := rows.Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.ResponseStatus, &webhook.ResponseDelayMS); err != nil {
+		if err := rows.Scan(&webhook.ID, &webhook.AccountID, &webhook.EventTypes, &webhook.Response2xxPercent, &webhook.Response429Percent, &webhook.Response4xxPercent, &webhook.Response5xxPercent, &webhook.ResponseDelayMS); err != nil {
 			return nil, err
 		}
 		webhooks = append(webhooks, webhook)
@@ -147,7 +169,7 @@ func collectWebhooks(rows pgx.Rows) ([]Webhook, error) {
 	return webhooks, rows.Err()
 }
 
-func validateWebhook(eventTypes []string, responseStatus, responseDelayMS int) error {
+func validateWebhook(eventTypes []string, response2xxPercent, response429Percent, response4xxPercent, response5xxPercent, responseDelayMS int) error {
 	if len(eventTypes) < 1 || len(eventTypes) > 3 {
 		return fmt.Errorf("select between one and three event types")
 	}
@@ -161,8 +183,16 @@ func validateWebhook(eventTypes []string, responseStatus, responseDelayMS int) e
 		}
 		seen[eventType] = struct{}{}
 	}
-	if responseStatus < 100 || responseStatus > 599 {
-		return fmt.Errorf("response status must be between 100 and 599")
+	responsePercentages := []int{response2xxPercent, response429Percent, response4xxPercent, response5xxPercent}
+	totalPercent := 0
+	for _, percentage := range responsePercentages {
+		if percentage < 0 || percentage > 100 {
+			return fmt.Errorf("response percentages must be between 0 and 100")
+		}
+		totalPercent += percentage
+	}
+	if totalPercent != 100 {
+		return fmt.Errorf("response percentages must total 100")
 	}
 	if responseDelayMS < 0 || responseDelayMS > 30000 {
 		return fmt.Errorf("response delay must be between 0 and 30000 milliseconds")

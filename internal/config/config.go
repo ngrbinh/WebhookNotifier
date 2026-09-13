@@ -8,41 +8,41 @@ import (
 )
 
 type Config struct {
-	DatabaseURL       string
-	RabbitURL         string
-	ReceiverPort      string
-	SimulatorPort     string
+	DatabaseURL          string
+	RabbitURL            string
+	ReceiverPort         string
+	SimulatorPort        string
 	SimulatorInternalURL string
-	QueueName         string
-	DLQName           string
-	Quantum           int
-	HighWatermark     int
-	LowWatermark      int
-	LeaseDuration     time.Duration
-	DeliveryTimeout   time.Duration
-	MaxAttempts       int
-	BaseBackoff       time.Duration
-	WorkerConcurrency int
+	QueueName            string
+	DLQName              string
+	Quantum              int
+	HighWatermark        int
+	LowWatermark         int
+	LeaseDuration        time.Duration
+	DeliveryTimeout      time.Duration
+	MaxAttempts          int
+	BaseBackoff          time.Duration
+	WorkerConcurrency    int
 }
 
 // Load returns service configuration populated from environment variables and defaults.
 func Load() Config {
 	return Config{
-		DatabaseURL:       env("DATABASE_URL", "postgres://webhook:webhook@localhost:5432/webhooknotifier?sslmode=disable"),
-		RabbitURL:         env("RABBITMQ_URL", "amqp://webhook:webhook@localhost:5672/"),
-		ReceiverPort:      env("RECEIVER_PORT", "8080"),
-		SimulatorPort:     env("SIMULATOR_PORT", "8084"),
+		DatabaseURL:          env("DATABASE_URL", "postgres://webhook:webhook@localhost:5432/webhooknotifier?sslmode=disable"),
+		RabbitURL:            env("RABBITMQ_URL", "amqp://webhook:webhook@localhost:5672/"),
+		ReceiverPort:         env("RECEIVER_PORT", "8080"),
+		SimulatorPort:        env("SIMULATOR_PORT", "8084"),
 		SimulatorInternalURL: env("SIMULATOR_INTERNAL_URL", "http://simulator:8084"),
-		QueueName:         env("QUEUE_NAME", "webhook.events"),
-		DLQName:           env("DLQ_NAME", "webhook.dead_letters"),
-		Quantum:           envInt("DISPATCH_QUANTUM", 5),
-		HighWatermark:     envInt("QUEUE_HIGH_WATERMARK", 1000),
-		LowWatermark:      envInt("QUEUE_LOW_WATERMARK", 500),
-		LeaseDuration:     envDuration("LEASE_DURATION", 30*time.Second),
-		DeliveryTimeout:   envDuration("DELIVERY_TIMEOUT", 5*time.Second),
-		MaxAttempts:       envInt("MAX_ATTEMPTS", 5),
-		BaseBackoff:       envDuration("BASE_BACKOFF", time.Second),
-		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 4),
+		QueueName:            env("QUEUE_NAME", "webhook.events"),
+		DLQName:              env("DLQ_NAME", "webhook.dead_letters"),
+		Quantum:              envInt("DISPATCH_QUANTUM", 5),
+		HighWatermark:        envInt("QUEUE_HIGH_WATERMARK", 50),
+		LowWatermark:         envInt("QUEUE_LOW_WATERMARK", 10),
+		LeaseDuration:        envDuration("LEASE_DURATION", 30*time.Second),
+		DeliveryTimeout:      envDuration("DELIVERY_TIMEOUT", 5*time.Second),
+		MaxAttempts:          envInt("MAX_ATTEMPTS", 5),
+		BaseBackoff:          envDuration("BASE_BACKOFF", time.Second),
+		WorkerConcurrency:    envInt("WORKER_CONCURRENCY", 4),
 	}
 }
 

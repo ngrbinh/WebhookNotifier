@@ -1,153 +1,20 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Webhook Notifier Simulator</title>
-	<style>
-		:root { --ink:#13211d; --muted:#64736b; --paper:#f5f2ea; --panel:#fffdf8; --line:#d7d2c6; --accent:#b5482e; --accent-dark:#87311e; --ok:#237a57; --warn:#a36310; }
-		* { box-sizing:border-box; }
-		body { margin:0; background:linear-gradient(135deg,#eef2e7 0%,var(--paper) 48%,#f5e8dc 100%); color:var(--ink); font:16px Georgia, "Times New Roman", serif; min-height:100vh; }
-		main { width:min(1080px,calc(100% - 2rem)); margin:0 auto; padding:3rem 0 4rem; }
-		header { border-bottom:2px solid var(--ink); padding-bottom:1rem; display:flex; justify-content:space-between; align-items:end; gap:1rem; }
-		h1 { font-size:clamp(2rem,5vw,3.5rem); margin:0; letter-spacing:0; font-weight:normal; }
-		header p { margin:0; color:var(--muted); max-width:28rem; }
-		nav { display:flex; gap:1px; margin:2rem 0; border-bottom:1px solid var(--line); }
-		nav button { background:none; color:var(--muted); border:0; padding:.8rem 1rem; font:inherit; cursor:pointer; }
-		nav button[aria-selected="true"] { color:var(--ink); border-bottom:3px solid var(--accent); }
-		.view { display:none; } .view.active { display:block; }
-		.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2rem; }
-		section { padding:1.25rem 0; border-top:1px solid var(--line); }
-		section:first-child { border-top:0; padding-top:0; }
-		h2 { font-size:1.4rem; font-weight:normal; margin:0 0 .35rem; }
-		.intro { color:var(--muted); margin:.35rem 0 1.25rem; }
-		form { display:grid; gap:.8rem; }
-		label, legend { font-weight:bold; } input, select { width:100%; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:.65rem; font:inherit; border-radius:0; }
-		fieldset { margin:0; border:1px solid var(--line); padding:.8rem; display:grid; gap:.5rem; }
-		.check { display:flex; align-items:center; gap:.5rem; font-weight:normal; } .check input { width:auto; }
-		button { font:inherit; cursor:pointer; border:1px solid var(--accent-dark); background:var(--accent); color:white; padding:.65rem 1rem; border-radius:0; } button:hover { background:var(--accent-dark); } button:disabled { opacity:.55; cursor:wait; }
-		.status { min-height:1.3rem; margin:.8rem 0 0; color:var(--muted); } .status.error { color:#9d251c; }
-		.list { margin:0; padding:0; list-style:none; display:grid; gap:.7rem; }
-		.list li { background:rgba(255,253,248,.75); border-left:3px solid var(--accent); padding:.75rem; }
-		code { font-family:"Courier New",monospace; font-size:.85em; overflow-wrap:anywhere; }
-		.metrics { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); margin:1.2rem 0; } .metric { padding:.7rem; border-right:1px solid var(--line); } .metric:last-child { border-right:0; } .metric strong { display:block; font-size:1.5rem; font-weight:normal; }
-		.delivery { display:grid; grid-template-columns:1fr auto; gap:.3rem 1rem; } .delivery small { color:var(--muted); } .delivery .code { color:var(--ok); } .delivery .failure { color:var(--warn); }
-		.empty { color:var(--muted); font-style:italic; } [hidden] { display:none!important; }
-		@media (max-width:700px) { main { padding-top:1.5rem; } header,.grid { display:block; } header p { margin-top:.8rem; } .grid > * + * { margin-top:2rem; } .metrics { grid-template-columns:repeat(2,1fr); } .metric { border-bottom:1px solid var(--line); } }
-	</style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Webhook Notifier Simulator</title>
+<style>
+:root{--ink:#13211d;--muted:#64736b;--paper:#f5f2ea;--panel:#fffdf8;--line:#d7d2c6;--accent:#b5482e;--dark:#87311e;--ok:#237a57;--warn:#a36310;--error:#9d251c}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(135deg,#eef2e7,var(--paper),#f5e8dc);color:var(--ink);font:16px Georgia,"Times New Roman",serif}main{width:min(1080px,calc(100% - 2rem));margin:auto;padding:3rem 0}header{display:flex;justify-content:space-between;align-items:end;gap:1rem;padding-bottom:1rem;border-bottom:2px solid var(--ink)}h1,h2{margin:0;font-weight:normal}h1{font-size:clamp(2rem,5vw,3.5rem)}h2{font-size:1.4rem}header p,.intro,.status,small{color:var(--muted)}nav{display:flex;margin:2rem 0;border-bottom:1px solid var(--line)}nav button{color:var(--muted);background:none;border:0}nav button[aria-selected="true"]{color:var(--ink);border-bottom:3px solid var(--accent)}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2rem}section{padding:1.25rem 0;border-top:1px solid var(--line)}section:first-child{border-top:0}form,.stack{display:grid;gap:.8rem}label,legend{font-weight:bold}input,select{width:100%;padding:.65rem;color:var(--ink);font:inherit;background:var(--panel);border:1px solid var(--line)}fieldset{display:grid;gap:.5rem;margin:0;padding:.8rem;border:1px solid var(--line)}.check{display:flex;gap:.5rem;font-weight:normal}.check input{width:auto}button{padding:.65rem 1rem;color:white;font:inherit;cursor:pointer;background:var(--accent);border:1px solid var(--dark)}button:hover{background:var(--dark)}button.secondary{color:var(--ink);background:transparent;border-color:var(--line)}.status{min-height:1.3rem}.status.error{color:var(--error)}.list{display:grid;gap:.7rem;margin:0;padding:0;list-style:none}.list li{padding:.75rem;background:rgba(255,253,248,.75);border-left:3px solid var(--accent)}.empty{font-style:italic}.percentages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.entry{display:grid;grid-template-columns:1.5fr 2fr 7rem auto;gap:.6rem;align-items:end;padding:.8rem;background:rgba(255,253,248,.7);border:1px solid var(--line)}.remove{width:2.5rem}.run{display:grid;grid-template-columns:1fr auto;gap:1rem}.state{text-transform:uppercase;font-size:.75rem;color:var(--warn)}.state.done{color:var(--ok)}.state.failed{color:var(--error)}.delivery{display:grid;grid-template-columns:1fr auto;gap:1rem}.code{color:var(--ok)}.failure{color:var(--warn)}@media(max-width:700px){main{padding-top:1.5rem}header,.grid{display:block}header p{margin-top:.8rem}.grid>*+*{margin-top:2rem}.entry{grid-template-columns:1fr}.remove{width:100%}}
+</style>
 </head>
-<body>
-	<main>
-		<header><div><h1>Webhook Notifier</h1></div><p>Register local destinations, generate account traffic, and inspect every delivery.</p></header>
-		<nav aria-label="Simulator views"><button type="button" data-view="registration" aria-selected="true">Registration</button><button type="button" data-view="simulation" aria-selected="false">Simulation and deliveries</button></nav>
-
-		<div id="registration" class="view active">
-			<div class="grid"><section><h2>Create account</h2><p class="intro">Events belong to an account. Add webhooks after the account exists.</p><form id="account-form"><label for="account-id">Account ID</label><input id="account-id" required maxlength="100" placeholder="acme"><button type="submit">Create account</button></form><p id="account-status" class="status" aria-live="polite"></p></section>
-			<section><h2>Register webhook</h2><p class="intro">The simulator creates the listener URL and records deliveries.</p><form id="webhook-form"><label for="webhook-account">Account</label><select id="webhook-account" required></select><fieldset><legend>Event types</legend><label class="check"><input type="checkbox" name="event-type" value="subscriber.created"> Subscriber created</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.added_to_segment"> Added to segment</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.unsubscribed"> Unsubscribed</label></fieldset><label for="response-status">Response status</label><select id="response-status"><option value="200">200 success</option><option value="429">429 retry later</option><option value="500">500 server error</option><option value="404">404 permanent failure</option></select><label for="response-delay">Response delay (milliseconds)</label><input id="response-delay" type="number" min="0" max="30000" value="0"><button type="submit">Register webhook</button></form><p id="webhook-status" class="status" aria-live="polite"></p></section></div>
-			<section><h2>Registered destinations</h2><ul id="webhook-list" class="list"></ul></section>
-		</div>
-
-		<div id="simulation" class="view"><section><h2>Start simulation</h2><p class="intro">Each generated account event enters every registered webhook with its matching event type.</p><form id="simulation-form"><div class="grid"><div><label for="profile">Traffic profile</label><select id="profile"><option value="balanced">Balanced</option><option value="noisy_neighbor">Noisy neighbor</option></select></div><div><label for="events">Account events</label><input id="events" type="number" min="1" max="10000" value="30"></div></div><label for="rate">Account events per second</label><input id="rate" type="number" min="1" max="1000" value="20"><button id="start" type="submit">Start simulation</button></form><p id="simulation-status" class="status" aria-live="polite"></p><div id="metrics" class="metrics" hidden></div></section><section><h2>Captured deliveries</h2><p class="intro">Refreshes while this view is open. A retryable endpoint appears once for every worker attempt.</p><ul id="delivery-list" class="list"></ul></section></div>
-	</main>
-	<script>
-		const state = { accounts: [], webhooks: [], refreshTimer: null };
-		const eventLabel = value => ({"subscriber.created":"subscriber.created","subscriber.added_to_segment":"subscriber.added_to_segment","subscriber.unsubscribed":"subscriber.unsubscribed"})[value] || value;
-		async function request(url, options = {}) { const response = await fetch(url, options); const body = await response.text(); if (!response.ok) throw new Error(body || response.statusText); return body ? JSON.parse(body) : null; }
-		function status(id, text, error = false) { const element = document.querySelector(id); element.textContent = text; element.classList.toggle("error", error); }
-		function renderAccounts() { const select = document.querySelector("#webhook-account"); select.replaceChildren(); if (!state.accounts.length) { select.add(new Option("Create an account first", "")); select.disabled = true; return; } select.disabled = false; state.accounts.forEach(account => select.add(new Option(account.id, account.id))); }
-		function renderWebhooks() { const list = document.querySelector("#webhook-list"); list.replaceChildren(); if (!state.webhooks.length) { list.innerHTML = '<li class="empty">No webhook destinations are registered.</li>'; return; } state.webhooks.forEach(webhook => { const item = document.createElement("li"); item.innerHTML = `<strong>${webhook.account_id}</strong><br><code>${location.origin}/internal/webhooks/${webhook.id}</code><br><small>${webhook.event_types.map(eventLabel).join(", ")} | ${webhook.response_status} after ${webhook.response_delay_ms}ms</small>`; list.append(item); }); }
-		async function loadRegistrations() { [state.accounts, state.webhooks] = await Promise.all([request("/api/accounts"), request("/api/webhooks")]); renderAccounts(); renderWebhooks(); }
-		function selectedEventTypes() { return [...document.querySelectorAll('input[name="event-type"]:checked')].map(input => input.value); }
-		document.querySelector("#account-form").addEventListener("submit", async event => { event.preventDefault(); try { const account = await request("/api/accounts", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:document.querySelector("#account-id").value})}); status("#account-status", `Created ${account.id}.`); event.target.reset(); await loadRegistrations(); } catch (error) { status("#account-status", error.message, true); } });
-		document.querySelector("#webhook-form").addEventListener("submit", async event => { event.preventDefault(); const eventTypes = selectedEventTypes(); if (eventTypes.length < 1 || eventTypes.length > 3) { status("#webhook-status", "Select between one and three event types.", true); return; } try { const webhook = await request("/api/webhooks", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account_id:document.querySelector("#webhook-account").value,event_types:eventTypes,response_status:Number(document.querySelector("#response-status").value),response_delay_ms:Number(document.querySelector("#response-delay").value)})}); status("#webhook-status", `Registered ${webhook.id}.`); event.target.reset(); await loadRegistrations(); } catch (error) { status("#webhook-status", error.message, true); } });
-		function renderMetrics(result) { const labels = [["Generated",result.generated],["Matched",result.matched],["Accepted",result.accepted],["Rejected",result.rejected],["Unmatched",result.unmatched]]; const metrics = document.querySelector("#metrics"); metrics.innerHTML = labels.map(([label,value]) => `<div class="metric"><small>${label}</small><strong>${value}</strong></div>`).join(""); metrics.hidden = false; }
-		async function loadDeliveries() { try { const deliveries = await request("/api/deliveries"); const list = document.querySelector("#delivery-list"); list.replaceChildren(); if (!deliveries.length) { list.innerHTML = '<li class="empty">No deliveries captured yet.</li>'; return; } deliveries.forEach(delivery => { const payload = JSON.parse(delivery.payload); const item = document.createElement("li"); item.className = "delivery"; item.innerHTML = `<div><strong>${delivery.webhook_id}</strong><br><small>${eventLabel(payload.event_name || "unknown event")} | ${new Date(delivery.received_at).toLocaleString()}</small></div><div class="code ${delivery.response_status >= 400 ? "failure" : ""}">${delivery.response_status}</div>`; list.append(item); }); } catch (error) { status("#simulation-status", error.message, true); } }
-		document.querySelector("#simulation-form").addEventListener("submit", async event => { event.preventDefault(); const button = document.querySelector("#start"); button.disabled = true; status("#simulation-status", "Simulation running..."); try { const result = await request("/api/simulate", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({profile:document.querySelector("#profile").value,events:Number(document.querySelector("#events").value),rate:Number(document.querySelector("#rate").value)})}); renderMetrics(result); status("#simulation-status", "Simulation complete."); await loadDeliveries(); } catch (error) { status("#simulation-status", error.message, true); } finally { button.disabled = false; } });
-		document.querySelectorAll("nav button").forEach(button => button.addEventListener("click", async () => { const view = button.dataset.view; document.querySelectorAll("nav button").forEach(item => item.setAttribute("aria-selected", item === button)); document.querySelectorAll(".view").forEach(item => item.classList.toggle("active", item.id === view)); if (state.refreshTimer) clearInterval(state.refreshTimer); if (view === "simulation") { await loadDeliveries(); state.refreshTimer = setInterval(loadDeliveries, 2000); } }));
-		loadRegistrations().catch(error => status("#account-status", error.message, true));
-	</script>
-</body>
-</html>
-<!doctype html>
-<html lang="en">
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Webhook Notifier Simulator</title>
-	<style>
-		body {
-			max-width: 720px;
-			margin: 4rem auto;
-			padding: 0 1rem;
-			background: #f4f1ea;
-			color: #18211c;
-			font: 16px system-ui;
-		}
-
-		button,
-		input,
-		select {
-			box-sizing: border-box;
-			padding: 0.7rem;
-		}
-
-		button {
-			border: 0;
-			border-radius: 4px;
-			background: #c94f35;
-			color: white;
-		}
-
-		input,
-		select {
-			width: 100%;
-			margin: 0.3rem 0 1rem;
-		}
-
-		pre {
-			min-height: 8rem;
-			padding: 1rem;
-			background: #18211c;
-			color: #d9e7d3;
-		}
-	</style>
-</head>
-<body>
-	<h1>Webhook Notifier</h1>
-	<p>Run a local fairness benchmark against the durable receiver.</p>
-
-	<label for="profile">Profile</label>
-	<select id="profile">
-		<option value="balanced">Balanced</option>
-		<option value="noisy_neighbor">Noisy neighbor</option>
-	</select>
-
-	<label for="events">Events</label>
-	<input id="events" type="number" value="30">
-
-	<label for="rate">Rate / second</label>
-	<input id="rate" type="number" value="20">
-
-	<button id="start" type="button">Start simulation</button>
-	<pre id="output">Idle</pre>
-
-	<script>
-		const startButton = document.querySelector("#start");
-		const output = document.querySelector("#output");
-
-		startButton.addEventListener("click", async () => {
-			output.textContent = "Running...";
-			const response = await fetch("/api/simulate", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					profile: document.querySelector("#profile").value,
-					events: Number(document.querySelector("#events").value),
-					rate: Number(document.querySelector("#rate").value)
-				})
-			});
-			output.textContent = await response.text();
-		});
-	</script>
-</body>
-</html>
+<body><main>
+<header><div><h1>Webhook Notifier</h1></div><p>Register local destinations, generate account traffic, and inspect deliveries.</p></header>
+<nav aria-label="Simulator views"><button type="button" data-view="registration" aria-selected="true">Registration</button><button type="button" data-view="simulation" aria-selected="false">Simulation and deliveries</button></nav>
+<div id="registration" class="view active"><div class="grid"><section><h2>Create account</h2><p class="intro">Events belong to an account. Add webhooks after the account exists.</p><form id="account-form"><label>Account ID<input id="account-id" required maxlength="100" placeholder="acme"></label><button>Create account</button></form><p id="account-status" class="status"></p></section><section><h2>Register webhook</h2><p class="intro">Each delivery selects one configured response outcome.</p><form id="webhook-form"><label>Account<select id="webhook-account" required></select></label><fieldset><legend>Event types</legend><label class="check"><input type="checkbox" name="event-type" value="subscriber.created">Subscriber created</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.added_to_segment">Added to segment</label><label class="check"><input type="checkbox" name="event-type" value="subscriber.unsubscribed">Unsubscribed</label></fieldset><fieldset><legend>Response distribution</legend><div class="percentages"><label>2xx %<input id="p2" type="number" min="0" max="100" value="100"></label><label>429 %<input id="p429" type="number" min="0" max="100" value="0"></label><label>404 %<input id="p4" type="number" min="0" max="100" value="0"></label><label>5xx %<input id="p5" type="number" min="0" max="100" value="0"></label></div></fieldset><label>Response delay (ms)<input id="response-delay" type="number" min="0" max="30000" value="0"></label><button>Register webhook</button></form><p id="webhook-status" class="status"></p></section></div><section><h2>Registered destinations</h2><ul id="webhook-list" class="list"></ul></section></div>
+<div id="simulation" class="view"><section><h2>Start simulation</h2><p class="intro">Add an entry for every account and event type to generate.</p><form id="simulation-form"><div id="entries" class="stack"></div><button id="add-entry" class="secondary" type="button">Add event entry</button><div class="grid"><label>Events per second<input id="rate" type="number" min="1" max="1000" value="20"></label><label>Newest deliveries<input id="delivery-limit" type="number" min="1" max="500" value="100"></label></div><button>Start simulation</button></form><p id="simulation-status" class="status"></p></section><section><h2>Simulation runs</h2><ul id="run-list" class="list"></ul></section><section><h2>Captured deliveries</h2><p class="intro">Refreshes while this view is open.</p><button id="clear-deliveries" class="secondary" type="button">Clear deliveries</button><ul id="delivery-list" class="list"></ul></section></div>
+</main><script>
+const eventTypes=["subscriber.created","subscriber.added_to_segment","subscriber.unsubscribed"];const state={accounts:[],webhooks:[],entries:[],runs:[],timer:null};const request=async(url,options={})=>{const response=await fetch(url,options);const body=await response.text();if(!response.ok)throw new Error(body||response.statusText);return body?JSON.parse(body):null};const setStatus=(id,text,error=false)=>{const el=document.querySelector(id);el.textContent=text;el.classList.toggle("error",error)};const option=(text,value)=>new Option(text,value);
+function renderAccounts(){const select=document.querySelector("#webhook-account");select.replaceChildren();if(!state.accounts.length){select.add(option("Create an account first",""));select.disabled=true;return}select.disabled=false;state.accounts.forEach(a=>select.add(option(a.id,a.id)))}async function deleteWebhook(webhook){if(!confirm(`Delete webhook ${webhook.id} and all of its captured deliveries?`))return;try{await request(`/api/webhooks/${webhook.id}`,{method:"DELETE"});setStatus("#webhook-status",`Deleted ${webhook.id}.`);await loadRegistrations();if(document.querySelector("#simulation").classList.contains("active"))await loadDeliveries()}catch(error){setStatus("#webhook-status",error.message,true)}}function renderWebhooks(){const list=document.querySelector("#webhook-list");list.replaceChildren();if(!state.webhooks.length){list.innerHTML='<li class="empty">No webhook destinations are registered.</li>';return}state.webhooks.forEach(w=>{const item=document.createElement("li");item.innerHTML=`<strong>${w.account_id}</strong><br><code>${location.origin}/internal/webhooks/${w.id}</code><br><small>${w.event_types.join(", ")} | ${w.response_2xx_percent}% 2xx, ${w.response_429_percent}% 429, ${w.response_4xx_percent}% 404, ${w.response_5xx_percent}% 5xx | ${w.response_delay_ms}ms delay</small>`;const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="Delete webhook";remove.onclick=()=>deleteWebhook(w);item.append(document.createElement("br"),remove);list.append(item)})}async function loadRegistrations(){[state.accounts,state.webhooks]=await Promise.all([request("/api/accounts"),request("/api/webhooks")]);renderAccounts();renderWebhooks();renderEntries()}
+document.querySelector("#account-form").addEventListener("submit",async e=>{e.preventDefault();try{const a=await request("/api/accounts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:document.querySelector("#account-id").value})});setStatus("#account-status",`Created ${a.id}.`);e.target.reset();await loadRegistrations()}catch(error){setStatus("#account-status",error.message,true)}});document.querySelector("#webhook-form").addEventListener("submit",async e=>{e.preventDefault();const types=[...document.querySelectorAll('[name="event-type"]:checked')].map(i=>i.value);const p=["#p2","#p429","#p4","#p5"].map(id=>Number(document.querySelector(id).value));if(!types.length){setStatus("#webhook-status","Select at least one event type.",true);return}if(p.some(x=>x<0||x>100)||p.reduce((a,b)=>a+b,0)!==100){setStatus("#webhook-status","Response percentages must total 100.",true);return}try{const w=await request("/api/webhooks",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account_id:document.querySelector("#webhook-account").value,event_types:types,response_2xx_percent:p[0],response_429_percent:p[1],response_4xx_percent:p[2],response_5xx_percent:p[3],response_delay_ms:Number(document.querySelector("#response-delay").value)})});setStatus("#webhook-status",`Registered ${w.id}.`);e.target.reset();document.querySelector("#p2").value=100;await loadRegistrations()}catch(error){setStatus("#webhook-status",error.message,true)}});
+function addEntry(){state.entries.push({account_id:state.accounts[0]?.id||"",event_type:eventTypes[0],event_count:1});renderEntries()}function renderEntries(){const box=document.querySelector("#entries");box.replaceChildren();state.entries.forEach((entry,index)=>{const row=document.createElement("div");row.className="entry";const account=document.createElement("select");state.accounts.forEach(a=>account.add(option(a.id,a.id)));account.value=entry.account_id;account.disabled=!state.accounts.length;account.onchange=()=>entry.account_id=account.value;const type=document.createElement("select");eventTypes.forEach(t=>type.add(option(t,t)));type.value=entry.event_type;type.onchange=()=>entry.event_type=type.value;const count=document.createElement("input");count.type="number";count.min=1;count.max=10000;count.value=entry.event_count;count.onchange=()=>entry.event_count=Number(count.value);const remove=document.createElement("button");remove.type="button";remove.className="secondary remove";remove.title="Remove event entry";remove.textContent="X";remove.onclick=()=>{state.entries.splice(index,1);renderEntries()};row.append(account,type,count,remove);box.append(row)})}function renderRuns(){const list=document.querySelector("#run-list");list.replaceChildren();if(!state.runs.length){list.innerHTML='<li class="empty">No simulation runs started in this browser session.</li>';return}state.runs.forEach(run=>{const item=document.createElement("li");item.className="run";const details=document.createElement("div");details.textContent=run.entries.map(e=>`${e.account_id}: ${e.event_count} ${e.event_type}`).join("; ");const label=document.createElement("div");label.className=`state ${run.status}`;label.textContent=run.status==="done"?`done: ${run.result.generated} generated`:run.status;item.append(details,label);list.append(item)})}
+async function loadDeliveries(){try{const limit=Number(document.querySelector("#delivery-limit").value);const deliveries=await request(`/api/deliveries?limit=${limit}`);const list=document.querySelector("#delivery-list");list.replaceChildren();if(!deliveries.length){list.innerHTML='<li class="empty">No deliveries captured yet.</li>';return}deliveries.forEach(d=>{const payload=typeof d.payload==="string"?JSON.parse(d.payload):d.payload;const item=document.createElement("li");item.className="delivery";item.innerHTML=`<div><strong>${d.account_id}</strong><br><small>${payload.event_name||"unknown event"} | ${new Date(d.received_at).toLocaleString()}</small></div><div class="code ${d.response_status>=400?"failure":""}">${d.response_status}</div>`;list.append(item)})}catch(error){setStatus("#simulation-status",error.message,true)}}async function clearDeliveries(){if(!confirm("Clear all captured deliveries?"))return;try{await request("/api/deliveries",{method:"DELETE"});setStatus("#simulation-status","Deliveries cleared.");await loadDeliveries()}catch(error){setStatus("#simulation-status",error.message,true)}}document.querySelector("#add-entry").onclick=addEntry;document.querySelector("#delivery-limit").onchange=loadDeliveries;document.querySelector("#clear-deliveries").onclick=clearDeliveries;document.querySelector("#simulation-form").addEventListener("submit",e=>{e.preventDefault();const entries=state.entries.map(x=>({...x,event_count:Number(x.event_count)}));if(!entries.length){setStatus("#simulation-status","Add at least one event entry.",true);return}const run={entries,status:"in-progress",result:null};state.runs.unshift(run);renderRuns();setStatus("#simulation-status","Simulation started.");request("/api/simulate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({entries,rate:Number(document.querySelector("#rate").value)})}).then(result=>{run.status="done";run.result=result;renderRuns();loadDeliveries()}).catch(error=>{run.status="failed";run.result={generated:0};setStatus("#simulation-status",error.message,true);renderRuns()})});document.querySelectorAll("nav button").forEach(button=>button.onclick=async()=>{const view=button.dataset.view;document.querySelectorAll("nav button").forEach(x=>x.setAttribute("aria-selected",x===button));document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x.id===view));if(state.timer)clearInterval(state.timer);if(view==="simulation"){await loadDeliveries();state.timer=setInterval(loadDeliveries,2000)}});renderEntries();renderRuns();loadRegistrations().catch(error=>setStatus("#account-status",error.message,true));
+</script></body></html>

@@ -23,35 +23,13 @@ import (
 
 type runConfig struct {
 	receiver string
-	accounts int
-	events   int
-	rate     int
-	profile  string
-	web      bool
 }
 
 func main() {
 	configuration := runConfig{}
 	flag.StringVar(&configuration.receiver, "receiver", "http://localhost:8080/api/v1/events", "receiver URL")
-	flag.IntVar(&configuration.accounts, "accounts", 3, "number of accounts")
-	flag.IntVar(&configuration.events, "events", 30, "event count")
-	flag.IntVar(&configuration.rate, "rate", 20, "events per second")
-	flag.StringVar(&configuration.profile, "profile", "balanced", "balanced or noisy_neighbor")
-	flag.BoolVar(&configuration.web, "web", false, "serve the dashboard on port 8084")
 	flag.Parse()
-	if configuration.web {
-		startDashboard(configuration)
-		return
-	}
-	ctx := context.Background()
-	pool, err := app.OpenDatabase(ctx, config.Load().DatabaseURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer pool.Close()
-	if _, err := simulateSendingEvents(ctx, configuration, registryservice.NewRegistry(pool), config.Load().SimulatorInternalURL); err != nil {
-		log.Fatal(err)
-	}
+	startDashboard(configuration)
 }
 
 // startDashboard serves simulator controls and runs simulations requested by the dashboard.
@@ -63,9 +41,8 @@ func startDashboard(configuration runConfig) {
 	}
 	defer pool.Close()
 	registry := registryservice.NewRegistry(pool)
-	handler := web.Handler(registry, func(ctx context.Context, profile string, events, rate int) (web.SimulationResult, error) {
-		configuration.profile, configuration.events, configuration.rate = profile, events, rate
-		return simulateSendingEvents(ctx, configuration, registry, settings.SimulatorInternalURL)
+	handler := web.Handler(registry, func(ctx context.Context, request web.SimulationRequest) (web.SimulationResult, error) {
+		return simulateSimulationEntries(ctx, configuration.receiver, request, registry, settings.SimulatorInternalURL)
 	})
 	server := &http.Server{Addr: ":" + settings.SimulatorPort, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Printf("simulator dashboard listening on http://localhost:%s\n", settings.SimulatorPort)
@@ -74,56 +51,76 @@ func startDashboard(configuration runConfig) {
 	}
 }
 
-// simulateSendingEvents sends account events to each matching simulator-managed webhook subscription.
-func simulateSendingEvents(ctx context.Context, configuration runConfig, registry *registryservice.Registry, simulatorURL string) (web.SimulationResult, error) {
+// simulateSimulationEntries sends the exact account event entries configured in the dashboard.
+func simulateSimulationEntries(ctx context.Context, receiver string, request web.SimulationRequest, registry *registryservice.Registry, simulatorURL string) (web.SimulationResult, error) {
+	if len(request.Entries) == 0 {
+		return web.SimulationResult{}, fmt.Errorf("add at least one simulation entry")
+	}
+	if request.Rate < 1 || request.Rate > 1000 {
+		return web.SimulationResult{}, fmt.Errorf("rate must be between 1 and 1000 events per second")
+	}
 	accounts, err := registry.ListAccounts(ctx)
 	if err != nil {
 		return web.SimulationResult{}, err
 	}
-	if len(accounts) == 0 {
-		return web.SimulationResult{}, fmt.Errorf("create at least one account before starting a simulation")
+	accountIDs := make(map[string]struct{}, len(accounts))
+	for _, account := range accounts {
+		accountIDs[account.ID] = struct{}{}
+	}
+	for _, entry := range request.Entries {
+		if _, exists := accountIDs[entry.AccountID]; !exists {
+			return web.SimulationResult{}, fmt.Errorf("account %q does not exist", entry.AccountID)
+		}
+		if !isSupportedEventType(entry.EventType) {
+			return web.SimulationResult{}, fmt.Errorf("unsupported event type %q", entry.EventType)
+		}
+		if entry.EventCount < 1 || entry.EventCount > 10000 {
+			return web.SimulationResult{}, fmt.Errorf("event count must be between 1 and 10000")
+		}
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
 	var accepted atomic.Int64
 	var rejected atomic.Int64
 	var matched atomic.Int64
 	var unmatched atomic.Int64
-	interval := time.Second / time.Duration(max(configuration.rate, 1))
+	interval := time.Second / time.Duration(request.Rate)
 	var group sync.WaitGroup
-	for index := 0; index < configuration.events; index++ {
-		accountIndex := index % len(accounts)
-		if configuration.profile == "noisy_neighbor" {
-			accountIndex = 0
-			if index%10 == 0 {
-				accountIndex = index % len(accounts)
-			}
-		}
-		accountID := accounts[accountIndex].ID
-		eventType := "subscriber." + eventName(index)
-		webhooks, err := registry.FindWebhooksForEvent(ctx, accountID, eventType)
-		if err != nil {
-			return web.SimulationResult{}, err
-		}
-		if len(webhooks) == 0 {
-			unmatched.Add(1)
-		}
-		for _, webhook := range webhooks {
-			matched.Add(1)
-			payload := json.RawMessage(fmt.Sprintf(`{"event_name":"%s","event_time":"%s","webhook_id":"%s","subscriber":{"id":"sub-%d","status":"active","email":"user@example.com"}}`, eventType, time.Now().UTC().Format(time.RFC3339), webhook.ID, index))
-			request := model.IngestionRequest{AccountID: accountID, DestinationURL: fmt.Sprintf("%s/internal/webhooks/%s", simulatorURL, webhook.ID), IdempotencyKey: fmt.Sprintf("sim-%d-%d-%s", time.Now().UnixNano(), index, webhook.ID), Payload: payload}
-			body, err := json.Marshal(request)
+	eventIndex := 0
+	for _, entry := range request.Entries {
+		for count := 0; count < entry.EventCount; count++ {
+			webhooks, err := registry.FindWebhooksForEvent(ctx, entry.AccountID, entry.EventType)
 			if err != nil {
 				return web.SimulationResult{}, err
 			}
-			group.Add(1)
-			go postEvent(client, configuration.receiver, body, &group, &accepted, &rejected)
+			if len(webhooks) == 0 {
+				unmatched.Add(1)
+			}
+			for _, webhook := range webhooks {
+				matched.Add(1)
+				payload := json.RawMessage(fmt.Sprintf(`{"event_name":"%s","event_time":"%s","webhook_id":"%s","subscriber":{"id":"sub-%d","status":"active","email":"user@example.com"}}`, entry.EventType, time.Now().UTC().Format(time.RFC3339), webhook.ID, eventIndex))
+				ingestionRequest := model.IngestionRequest{AccountID: entry.AccountID, DestinationURL: fmt.Sprintf("%s/internal/webhooks/%s", simulatorURL, webhook.ID), IdempotencyKey: fmt.Sprintf("sim-%d-%d-%s", time.Now().UnixNano(), eventIndex, webhook.ID), Payload: payload}
+				body, err := json.Marshal(ingestionRequest)
+				if err != nil {
+					return web.SimulationResult{}, err
+				}
+				group.Add(1)
+				go postEvent(client, receiver, body, &group, &accepted, &rejected)
+			}
+			eventIndex++
+			time.Sleep(interval)
 		}
-		time.Sleep(interval)
 	}
 	group.Wait()
-	result := web.SimulationResult{Generated: configuration.events, Matched: int(matched.Load()), Accepted: int(accepted.Load()), Rejected: int(rejected.Load()), Unmatched: int(unmatched.Load())}
-	fmt.Printf("profile=%s generated=%d matched=%d accepted=%d rejected=%d unmatched=%d\n", configuration.profile, result.Generated, result.Matched, result.Accepted, result.Rejected, result.Unmatched)
-	return result, nil
+	return web.SimulationResult{Generated: eventIndex, Matched: int(matched.Load()), Accepted: int(accepted.Load()), Rejected: int(rejected.Load()), Unmatched: int(unmatched.Load())}, nil
+}
+
+func isSupportedEventType(eventType string) bool {
+	switch eventType {
+	case "subscriber.created", "subscriber.added_to_segment", "subscriber.unsubscribed":
+		return true
+	default:
+		return false
+	}
 }
 
 func postEvent(client *http.Client, receiver string, body []byte, group *sync.WaitGroup, accepted, rejected *atomic.Int64) {
@@ -137,24 +134,4 @@ func postEvent(client *http.Client, receiver string, body []byte, group *sync.Wa
 	if response != nil {
 		response.Body.Close()
 	}
-}
-
-// eventName returns the payload event name for a simulator request index.
-func eventName(index int) string {
-	switch index % 3 {
-	case 1:
-		return "added_to_segment"
-	case 2:
-		return "unsubscribed"
-	default:
-		return "created"
-	}
-}
-
-// max returns the greater of two integers.
-func max(left, right int) int {
-	if left > right {
-		return left
-	}
-	return right
 }

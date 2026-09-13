@@ -23,9 +23,9 @@ func NewEventRepository(pool *pgxpool.Pool) *EventRepository { return &EventRepo
 func (repository *EventRepository) InsertEvent(ctx context.Context, request model.IngestionRequest, maxAttempts int) (model.Event, bool, error) {
 	id := uuid.New()
 	var event model.Event
-	err := repository.Pool.QueryRow(ctx, `INSERT INTO events (id, account_id, destination_url, idempotency_key, payload, status, max_attempts) VALUES ($1,$2,$3,$4,$5,'pending',$6) ON CONFLICT (account_id,idempotency_key) DO NOTHING RETURNING id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,last_failure_reason,created_at`, id, request.AccountID, request.DestinationURL, request.IdempotencyKey, request.Payload, maxAttempts).Scan(&event.ID, &event.AccountID, &event.DestinationURL, &event.IdempotencyKey, &event.Payload, &event.Status, &event.AttemptCount, &event.MaxAttempts, &event.NextRetryAt, &event.LastFailureReason, &event.CreatedAt)
+	err := repository.Pool.QueryRow(ctx, `INSERT INTO events (id, account_id, destination_url, idempotency_key, payload, status, max_attempts) VALUES ($1,$2,$3,$4,$5,'pending',$6) ON CONFLICT (account_id,idempotency_key) DO NOTHING RETURNING id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,COALESCE(last_failure_reason, ''),created_at`, id, request.AccountID, request.DestinationURL, request.IdempotencyKey, request.Payload, maxAttempts).Scan(&event.ID, &event.AccountID, &event.DestinationURL, &event.IdempotencyKey, &event.Payload, &event.Status, &event.AttemptCount, &event.MaxAttempts, &event.NextRetryAt, &event.LastFailureReason, &event.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		err = repository.Pool.QueryRow(ctx, `SELECT id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,last_failure_reason,created_at FROM events WHERE account_id=$1 AND idempotency_key=$2`, request.AccountID, request.IdempotencyKey).Scan(&event.ID, &event.AccountID, &event.DestinationURL, &event.IdempotencyKey, &event.Payload, &event.Status, &event.AttemptCount, &event.MaxAttempts, &event.NextRetryAt, &event.LastFailureReason, &event.CreatedAt)
+		err = repository.Pool.QueryRow(ctx, `SELECT id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,COALESCE(last_failure_reason, ''),created_at FROM events WHERE account_id=$1 AND idempotency_key=$2`, request.AccountID, request.IdempotencyKey).Scan(&event.ID, &event.AccountID, &event.DestinationURL, &event.IdempotencyKey, &event.Payload, &event.Status, &event.AttemptCount, &event.MaxAttempts, &event.NextRetryAt, &event.LastFailureReason, &event.CreatedAt)
 		return event, false, err
 	}
 	return event, err == nil, err
@@ -56,7 +56,7 @@ func (repository *EventRepository) ClaimBatchForAccount(ctx context.Context, acc
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, `SELECT id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,last_failure_reason,created_at FROM events WHERE account_id=$1 AND (status='pending' OR (status='retriable' AND next_retry_at <= NOW())) AND (lease_expires_at IS NULL OR lease_expires_at < NOW()) ORDER BY created_at ASC LIMIT $2 FOR UPDATE SKIP LOCKED`, accountID, quantum)
+	rows, err := tx.Query(ctx, `SELECT id,account_id,destination_url,idempotency_key,payload,status,attempt_count,max_attempts,next_retry_at,COALESCE(last_failure_reason, ''),created_at FROM events WHERE account_id=$1 AND (status='pending' OR (status='retriable' AND next_retry_at <= NOW())) AND (lease_expires_at IS NULL OR lease_expires_at < NOW()) ORDER BY created_at ASC LIMIT $2 FOR UPDATE SKIP LOCKED`, accountID, quantum)
 	if err != nil {
 		return nil, err
 	}
