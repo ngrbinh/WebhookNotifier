@@ -23,6 +23,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -70,3 +72,4 @@ services:
       receiver: { condition: service_started }
 volumes:
   postgres-data:
+  rabbitmq-data:
