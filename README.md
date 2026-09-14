@@ -40,19 +40,39 @@ When changing the pipeline, preserve these boundaries. In particular, retry sche
 
 ## Simulator
 
-### Dashboard
+Open `http://localhost:8084` after starting Compose. The dashboard has two screens:
 
-Open `http://localhost:8084` after starting Compose. Create accounts and register matching webhooks first. Each webhook has a response distribution across `2xx`, `429`, permanent `404`, and `5xx` outcomes; the percentages must total 100.
+### Registration
 
-In **Simulation and deliveries**, add one or more account/event/count entries, set the shared publication rate, and choose **Start simulation**. Every submitted run is tracked independently in the browser, so additional runs can start while another is in progress. The run list is intentionally cleared on page reload. Set **Newest deliveries** to control how many recent captures are shown; each row displays the account, event type, receipt time, and returned status.
+- **Features:**
+  - Create accounts that own webhook destinations.
+  - Register a webhook for an account and select the event types it accepts.
+  - Configure the expected response distribution across `2xx`, `429`, permanent `404`, and `5xx` outcomes. The percentages must total 100.
+  - Configure an optional response delay from 0 to 30,000 milliseconds.
+  - Review registered destinations and delete webhooks when they are no longer needed.
+- **Usage:**
+  1. Enter an account ID and select **Create account**.
+  2. Select the account in **Register webhook**.
+  3. Select at least one event type.
+  4. Set the response percentages and optional response delay.
+  5. Select **Register webhook**.
 
-Run the dashboard with:
+### Simulation and deliveries
 
-```powershell
-go run ./cmd/simulator
-```
+- **Features:**
+  - Add one or more account/event/count entries to generate traffic.
+  - Set the shared publication rate in events per second.
+  - Track each submitted simulation run independently in the browser, including runs started while another run is in progress.
+  - View captured deliveries with the account, event type, receipt time, and returned status.
+  - Choose **Show newest deliveries** to control how many recent captures are displayed.
+  - Clear all captured deliveries from the dashboard.
+- **Usage:**
+  1. Select **Add event entry** and configure the account, event type, and event count for each entry.
+  2. Set **Events per second**.
+  3. Select **Start simulation**.
+  4. Monitor the result in **Simulation runs** and inspect delivery outcomes in **Captured deliveries**.
 
-The only simulator flag is `-receiver`, which overrides the receiver ingestion URL. Configure accounts, webhook outcomes, event entries, and publication rate in the dashboard.
+The simulation run list is intentionally cleared when the page is reloaded. Configure accounts and webhooks on the Registration screen before starting a simulation.
 
 ## Receiver example
 
